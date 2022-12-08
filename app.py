@@ -1,27 +1,32 @@
-from flask import Flask, send_file, jsonify, url_for
-from flask import redirect, request, session, render_template
-import os
-from celery import Celery
-from flask_session import Session
-import pandas as pd
-from celery.result import AsyncResult
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-from login_required_decorator import login_required
 import csv
-from flask_migrate import Migrate
+import os
 import random
-from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import WebDriverException
-from webdriver_manager.chrome import ChromeDriverManager
+import re
 import time
+from datetime import datetime
+
 import pandas as pd
+from bs4 import BeautifulSoup
+from celery import Celery
+from celery.result import AsyncResult
+from flask import (Flask, jsonify, redirect, render_template, request,
+                   send_file, session, url_for)
+from flask_login import (LoginManager, UserMixin, current_user, login_required,
+                         login_user, logout_user)
+from flask_migrate import Migrate
+from flask_session import Session
+from flask_sqlalchemy import SQLAlchemy
+from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from webdriver_manager.chrome import ChromeDriverManager
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from config import *
 
 app = Flask(__name__)
+app.secret_key = "super secret key"
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = SESSION_TYPE
 
@@ -31,10 +36,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-app.config['CELERY_BROKER_URL'] = BROKER_URL
-app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
-# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+
+
+
+
+# app.config['CELERY_BROKER_URL'] = BROKER_URL
+# app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 
@@ -50,9 +59,9 @@ options.add_argument("--disable-extensions")
 options.add_argument("--start-maximized")
 options.add_argument('--disable-gpu')
 options.add_argument('--disable-dev-shm-usage')
-driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
+# driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
-# driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
+driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 
 """
 Dice Crawler
@@ -336,8 +345,7 @@ def scrap_naukari(self, tech, location, page):
             except KeyError or ValueError:
                 website_list.append("NA")
             except:
-                website_list.append("NA")
-
+                website_list.apssage
             details = []
             try:
                 for i in soup.find(attrs={'class': "other-details"}).findAll(attrs={'class': "details"}):
@@ -405,11 +413,17 @@ def scrap_naukari(self, tech, location, page):
     driver.close()
 
 
-class User(db.Model):
+class User(db.Model,UserMixin):
     id = db.Column('User_id', db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False)
+    first_name = db.Column(db.String(100), unique=False, nullable=False)
+    last_name = db.Column(db.String(100), unique=False, nullable=False)
     email = db.Column(db.String(50), unique=True, nullable=False)
+    mobile = db.Column(db.String(12), unique=True, nullable=False)
     password = db.Column(db.String(200), unique=True, nullable=False)
+    status = db.Column(db.String(100), unique=False, nullable=False)
+    created_date = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_date = db.Column(db.DateTime, nullable=True, onupdate=datetime.now)
 
 
 class Dicedata(db.Model):
@@ -502,11 +516,20 @@ def save_indeed_data_to_db():
     c.commit()
     c_obj.close()
 
+# Login manager
+login_manager = LoginManager ()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 with app.app_context():
     db.create_all()
 
 
-@app.route("/", endpoint="1")
+@app.route("/home", endpoint="1")
 @login_required
 def home():
     return render_template("home.html")
@@ -514,57 +537,69 @@ def home():
 
 @app.route("/signup", methods=('GET', 'POST'))
 def signup():
-    message = None
+    msg = ''
     if request.method == 'POST':
-        username = request.form['username']
+        firstname = request.form['firstname']
+        lastname = request.form['lastname']
         email = request.form['email']
+        contact = request.form['contact']
         password = request.form['password']
-        user_exits = User.query.filter_by(email=email).first()
-        if user_exits:
-            message = "Email if is already Taken !!!"
-            return render_template("signup.html", name="signup", message=message)
 
+        account = User.query.filter_by(email=email).first()
+
+        if account:
+            msg = 'Account already exists !'
+        elif not re.match(r'[^@]+@[^@]+\.[^@]+', email):
+            msg = 'Invalid email address !'
+        elif not re.match(r'[A-Za-z0-9]+', firstname):
+            msg = 'Username must contain only characters and numbers !'
+        elif not firstname or not lastname or not email or not contact or not password:
+            msg = 'Please fill out the form !'
         else:
             hashed_password = generate_password_hash(
                 password=password, method='sha256')
-            new_user = User(username=username,
-                            email=email,
-                            password=hashed_password)
 
+            new_user = User(first_name=firstname,
+                            last_name=lastname,
+                            email=email,
+                            mobile=contact,
+                            password=hashed_password,
+                            status='ACTIVE')
             db.session.add(new_user)
             db.session.commit()
-            message = "New User Registerd"
 
-            print("new user created")
-    return render_template("signup.html", name="signup", message=message)
+            msg = 'You have successfully registered !'
+    elif request.method == 'POST':
+        msg = 'Please fill out the form !'
+    return render_template('signup.html', msg=msg)
 
 
-@app.route("/login", methods=('GET', 'POST'))
+@ app.route("/login", methods=['GET','POST'])
 def login():
-    error = None
+    msg = None
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        user = User.query.filter_by(email=email).first()
+        user = User.query.filter_by(email=email,status='ACTIVE').first()
         if user:
             if check_password_hash(user.password, password):
-                print("User Logged In")
-                session['user'] = User
-                print(session.get('user'))
-                return redirect('/')
+                login_user(user)
+                return redirect('/home')
+               
             else:
                 error = "Wrong password"
                 return render_template("login.html", name="login", error=error)
         else:
-            error = "Email id not matched"
+            error = "User Does Not Exist"
             return render_template("login.html", name="login", error=error)
     else:
         return render_template("login.html", name="login")
 
 
-@login_required
 @app.route("/logout", endpoint='2')
+@login_required
 def logout():
+    logout_user()
     session.clear()
     return redirect('/login')
 
@@ -693,7 +728,7 @@ def export():
 
 
 if __name__ == "__main__":
-    app.secret_key = 'super secret key'
+    # app.secret_key = 'super secret key'
     app.config['SESSION_TYPE'] = 'filesystem'
     sess.init_app(app)
     app.run(debug=True, host="0.0.0.0")
