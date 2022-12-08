@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
+    <title>Result</title>
+</head>
+<body>
+
+<!--     <div class="d-flex gap-2 col-2 mx-auto h-20% flex-row-reverse" >-->
+<!-- <a class="font-weight-bold font-label" href="javascript:history.back()">Back</a>-->
+<!--     <a href="/logout" ><button class="btn btn-danger">Logout</button></a>-->
+<!--     </div>-->
+
+     <div class="d-flex gap-2 flex-row col-2  flex-row-reverse mx-auto justify-content-center"  >
+
+    <form>
+<a class="font-weight-bold font-label" href="javascript:history.back()">Back</a>
+    </form>
+        <form>
+    <button class="btn btn-success" onclick="/logout" id="3">Logout</button>
+      </form>
+     </div>
+
+
+
+<div class=page>
+  <table border="1">
+  <h1 align="center">Data</h1>
+  {% for table in tables %}
+    {{ table|safe }}
+  {% endfor %}
+  </table>
+</div>
+
+</body>
+</html>

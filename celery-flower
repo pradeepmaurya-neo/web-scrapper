@@ -1,0 +1,17 @@
+#celery flower commands and APIs.
+
+#command to run flower server.
+celery -A tasks flower --address=127.0.0.1 --port=5555
+
+#APIs
+1. List of workers- localhost:5555/api/workers
+2. Restart worker - localhost:5555/api/worker/pool/restart/celery@worker2
+3. List of all task - localhost:5555/api/tasks
+4. See which tasks type - localhost:5555/api/task/types
+4. Length of Active queues - localhost:5555/api/queues/length
+5. Get a single task info(using task id) - localhost:5555/api/task/info/<task-id>
+6. Revoke a task(using task id) - localhost:5555/api/task/revoke/<task-id>?terminate=true
+
+
+
+
