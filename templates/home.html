@@ -35,7 +35,10 @@ margin-top: 40px;
 .hidden {
   visibility: hidden;
 }
-
+body{
+    width: 90vw;
+    height: 90vh;
+}
 
 
 /* <!--#myDIV{
@@ -46,16 +49,16 @@ display: none;
 <body>
 
 <div class="row" >
-    <div class="col col-sm-1 " style="margin-left:85%; margin-top:1%">
+    <div class="col col-sm-1 " style="margin-left:90%; margin-top:1%">
     <a href="/logout" class="btn btn-danger">Logout</a>
     </div>
 
-    <div style="margin-left:5%">
+    <div style="margin-left:3%">
     <h2>Job Scrapper</h2>
     <h4> What job do you Want to search?</h4>
         </div>
 
-    <div class="col col-sm-6" style="margin-left:5%">
+    <div class="col col-sm-6" style="margin-left:2%">
     <select name="web" id="web">
         <option value = "none" selected hidden>Select Website</option>
             <option  value="indeed" >Indeed</option>
@@ -64,15 +67,15 @@ display: none;
       </select>
     <br><br>
             <input type="text" name="tech" id="tech" placeholder="Enter technology to search">
-      <br><br>
+      <br>
             <input type="text" name="location" id="location" placeholder="Enter location to search">
-      <br><br>
+      <br>
             <input type="number" name="pages" id="page" placeholder="Enter number of pages to search">
-        <br><br>
+        <br>
             <button class="btn btn-success" id="start-bg-job" style="padding-left:5%" >search</button>
     </div>
 
-    <div class="col col-sm-5" style="padding-left:9%">
+    <div class="col col-sm-5" style="margin-left:5%">
     <img src="./static/neosoft.jpg" alt="Neosoft">
     </div>
 

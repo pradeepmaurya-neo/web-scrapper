@@ -20,6 +20,8 @@ import time
 import pandas as pd
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from config import *
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 app.config["SESSION_PERMANENT"] = False
@@ -50,7 +52,7 @@ options.add_argument("--disable-extensions")
 options.add_argument("--start-maximized")
 options.add_argument('--disable-gpu')
 options.add_argument('--disable-dev-shm-usage')
-driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
 # driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 
@@ -59,6 +61,7 @@ Dice Crawler
 """
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
+    print('-----------')
     FILE_NAME = 'dice.csv'
     driver.maximize_window()
     time.sleep(3)
@@ -161,7 +164,7 @@ def get_job_detail_links(tech, location, page):
 
 @celery.task(bind=True)
 def scrap_details(self, tech, location, page):
-    print("___________", "Indeed")
+    print("___________", "Indeed", "gittest")
     message = ''
     get_job_detail_links(tech, location, page)
     time.sleep(2)
@@ -238,7 +241,7 @@ def scrap_details(self, tech, location, page):
         df['location_list'] = location_list
         df['qualification_list'] = qualification_list
         df.to_csv(f'./static/{FILE_NAME}', index=False)
-        save_indeed_data_to_db()
+        #save_indeed_data_to_db()
         verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
         adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
         noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
@@ -401,7 +404,7 @@ def scrap_naukari(self, tech, location, page):
     df['Job Description'] = job_description_list
     df['About Company'] = about_company_list
     df.to_csv(f'./static/{FILE_NAME}', index=False)
-    save_naukri_data_to_db()
+    #save_naukri_data_to_db()
     driver.close()
 
 
@@ -454,7 +457,7 @@ class Naukridata(db.Model):
     Job_Description = db.Column(db.String(3000), unique=False, nullable=False)
     About_Company = db.Column(db.String(3000), unique=False, nullable=False)
 
-
+'''
 def save_naukri_data_to_db():
     data = []
     c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
@@ -501,7 +504,7 @@ def save_indeed_data_to_db():
     c_obj.executemany(data_csv, data)
     c.commit()
     c_obj.close()
-
+'''
 with app.app_context():
     db.create_all()
 
