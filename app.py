@@ -40,10 +40,10 @@ migrate = Migrate(app, db)
 
 
 
-# app.config['CELERY_BROKER_URL'] = BROKER_URL
-# app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+app.config['CELERY_BROKER_URL'] = BROKER_URL
+app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
+# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
+# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 
@@ -66,6 +66,7 @@ driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 """
 Dice Crawler
 """
+
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
     FILE_NAME = 'dice.csv'
