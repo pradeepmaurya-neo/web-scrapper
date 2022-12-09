@@ -5,3 +5,6 @@ venv
 env
 .idea
 .vscode
+instance
+migrations
+flask_session
