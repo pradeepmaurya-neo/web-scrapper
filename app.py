@@ -26,24 +26,16 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from config import *
 
 app = Flask(__name__)
-app.secret_key = "super secret key"
+
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = SESSION_TYPE
-
+app.config["SECRET_KEY"] = SECRET_KEY
 sess = Session()
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
-
-
-
-app.config['CELERY_BROKER_URL'] = BROKER_URL
-app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
-# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 
@@ -518,7 +510,7 @@ def save_indeed_data_to_db():
     c_obj.close()
 
 # Login manager
-login_manager = LoginManager ()
+login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
@@ -729,7 +721,6 @@ def export():
 
 
 if __name__ == "__main__":
-    # app.secret_key = 'super secret key'
-    app.config['SESSION_TYPE'] = 'filesystem'
+   
     sess.init_app(app)
     app.run(debug=True, host="0.0.0.0")
