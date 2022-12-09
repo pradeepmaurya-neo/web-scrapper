@@ -3,19 +3,17 @@ version: "3"
 services:
   chrome:
     image: selenium/standalone-chrome
+    restart: always
     ports:
       - "4443:4443"
       - "4442:4442"
       - "4444:4444"
     shm_size: '1gb'
-    depends_on:
-      - scrapper
 
   scrapper:
     build:
       context: .
-    # depends_on:
-    #   - chrome
+    restart: always
     volumes:
       - /api
     ports:
@@ -39,7 +37,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A crawl.celery worker -l info
+    restart: always
+    command: celery -A app.celery worker -l info
     # command:  ['celery', '-A', 'app.tasks', 'worker']
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -49,3 +48,4 @@ services:
     depends_on:
       - redis
       - scrapper   
+      - chrome   

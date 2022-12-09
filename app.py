@@ -36,10 +36,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# app.config['CELERY_BROKER_URL'] = BROKER_URL
-# app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+app.config['CELERY_BROKER_URL'] = BROKER_URL
+app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
+# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
+# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 
@@ -55,9 +55,9 @@ options.add_argument("--disable-extensions")
 options.add_argument("--start-maximized")
 options.add_argument('--disable-gpu')
 options.add_argument('--disable-dev-shm-usage')
-# driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
+driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
-driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
+# driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 
 """
 Dice Crawler
@@ -526,6 +526,7 @@ with app.app_context():
     db.create_all()
 
 
+@app.route("/", endpoint="1")
 @app.route("/home", endpoint="1")
 @login_required
 def home():
