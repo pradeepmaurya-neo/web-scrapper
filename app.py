@@ -3,14 +3,15 @@ import os
 import random
 import re
 import time
+import mysql.connector
 from datetime import datetime
-
+import redis
 import pandas as pd
 from bs4 import BeautifulSoup
 from celery import Celery
 from celery.result import AsyncResult
-from flask import (Flask, jsonify, redirect, render_template, request,
-                   send_file, session, url_for)
+from flask import (Flask, jsonify, redirect, session, render_template, request,
+                   send_file, url_for)
 from flask_login import (LoginManager, UserMixin, current_user, login_required,
                          login_user, logout_user)
 from flask_migrate import Migrate
@@ -27,17 +28,19 @@ from config import *
 
 app = Flask(__name__)
 
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = SESSION_TYPE
 app.config["SECRET_KEY"] = SECRET_KEY
-sess = Session()
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-
+app.config["SESSION_TYPE"] = SESSION_TYPE
+app.config["SESSION_PERMANENT"] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_REDIS'] = redis.from_url('redis://redis:6379')
 app.config['CELERY_BROKER_URL'] = BROKER_URL
 app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+session_app = Session(app)
+
 # app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
 # app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
@@ -66,7 +69,7 @@ Dice Crawler
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
     FILE_NAME = 'dice.csv'
-    driver.maximize_window()
+    # driver.maximize_window()
     time.sleep(3)
     job_titles_list, company_name_list, location_list, job_types_list = [], [], [], []
     job_posted_dates_list, job_descriptions_list = [], []
@@ -77,7 +80,7 @@ def extract_dice_jobs(self, tech, location, page=1):
     for k in range(1, int(page)):
         URL = f"https://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
         driver.get(URL)
-        driver.maximize_window()
+        # driver.maximize_window()
         try:
             input = driver.find_element(By.ID, "typeaheadInput")
             input.click()
@@ -726,5 +729,5 @@ def export():
 
 
 if __name__ == "__main__":
-    sess.init_app(app)
+    # sess.init_app(app)
     app.run(debug=True, host="0.0.0.0")
