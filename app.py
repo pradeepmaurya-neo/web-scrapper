@@ -39,7 +39,6 @@ migrate = Migrate(app, db)
 app.config['CELERY_BROKER_URL'] = BROKER_URL
 app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
 # app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-# app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 
