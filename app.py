@@ -3,7 +3,9 @@ import os
 import random
 import re
 import time
-import mysql.connector
+import json
+# import mysql.connector
+import sqlite3
 from datetime import datetime
 import redis
 import pandas as pd
@@ -23,29 +25,50 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 from werkzeug.security import check_password_hash, generate_password_hash
-
+from flask_cors import CORS
+from flask import current_app
+# from db import db
 from config import *
 
 app = Flask(__name__)
 
+
+# Login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
 app.config["SECRET_KEY"] = SECRET_KEY
+app.config['CORS_HEADERS'] = 'Content-Type'
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config["SESSION_TYPE"] = SESSION_TYPE
 app.config["SESSION_PERMANENT"] = False
 app.config['SESSION_USE_SIGNER'] = True
-app.config['SESSION_REDIS'] = redis.from_url('redis://redis:6379')
+app.config['SESSION_REDIS'] = redis.from_url('redis://localhost:6379')
 app.config['CELERY_BROKER_URL'] = BROKER_URL
 app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-session_app = Session(app)
+sess=Session(app)
+
+# conn = sqlite3.connect('scrapper.sqlite3')
+# c = conn.cursor()
 
 # app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
 # app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
+celery = Celery("app", broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
+CORS(app)
 
+# with app.app_context():
+#     # within this block, current_app points to app.
+#     current_app.name
 
 options = webdriver.ChromeOptions()
 options.headless = True
@@ -62,81 +85,109 @@ driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_cap
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
 # driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 
+
+class Scrappdata(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer)
+    web = db.Column(db.String(150))
+    keywords = db.Column(db.String(150))
+    created_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    scrapped = db.Column(db.Text())
+
 """
 Dice Crawler
 """
+@app.route("/test/data")
+def test():
+    scrap_data = Scrappdata.query.get(6)
+    response = scrap_data.scrapped
+    return jsonify(response)
+    # csv = response.to_csv("dice.csv", index=False)
+    # return send_file(csv, as_attachment=True)
+
 
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
-    FILE_NAME = 'dice.csv'
+    # FILE_NAME = 'dice.csv'
     # driver.maximize_window()
-    time.sleep(3)
-    job_titles_list, company_name_list, location_list, job_types_list = [], [], [], []
-    job_posted_dates_list, job_descriptions_list = [], []
-    verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
-    adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
-    noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
-    message = ''
-    for k in range(1, int(page)):
-        URL = f"https://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
-        driver.get(URL)
-        # driver.maximize_window()
-        try:
-            input = driver.find_element(By.ID, "typeaheadInput")
-            input.click()
-        except:
-            time.sleep(5)
+    with app.app_context():
+        time.sleep(3)
+        job_titles_list, company_name_list, location_list, job_types_list = [], [], [], []
+        job_posted_dates_list, job_descriptions_list = [], []
+        verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
+        adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
+        noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
+        message = ''
+        for k in range(1, int(page)):
+            URL = f"https://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
+            driver.get(URL)
+            # driver.maximize_window()
+            try:
+                input = driver.find_element(By.ID, "typeaheadInput")
+                input.click()
+            except:
+                time.sleep(5)
 
-        job_titles = driver.find_elements(By.CLASS_NAME, "card-title-link")
-        company_name = driver.find_elements(
-            By.XPATH, '//div[@class="card-company"]/a')
-        job_locations = driver.find_elements(
-            By.CLASS_NAME, "search-result-location")
-        job_types = driver.find_elements(
-            By.XPATH, '//span[@data-cy="search-result-employment-type"]')
-        job_posted_dates = driver.find_elements(By.CLASS_NAME, "posted-date")
-        job_descriptions = driver.find_elements(By.CLASS_NAME, "card-description")
+            job_titles = driver.find_elements(By.CLASS_NAME, "card-title-link")
+            company_name = driver.find_elements(
+                By.XPATH, '//div[@class="card-company"]/a')
+            job_locations = driver.find_elements(
+                By.CLASS_NAME, "search-result-location")
+            job_types = driver.find_elements(
+                By.XPATH, '//span[@data-cy="search-result-employment-type"]')
+            job_posted_dates = driver.find_elements(By.CLASS_NAME, "posted-date")
+            job_descriptions = driver.find_elements(By.CLASS_NAME, "card-description")
 
-        # company_name
-        for i in company_name:
-            company_name_list.append(i.text)
+            # company_name
+            for i in company_name:
+                company_name_list.append(i.text)
 
-        # job titles list
-        for i in job_titles:
-            job_titles_list.append(i.text)
+            # job titles list
+            for i in job_titles:
+                job_titles_list.append(i.text)
 
-        # #locations
-        for i in job_locations:
-            location_list.append(i.text)
+            # #locations
+            for i in job_locations:
+                location_list.append(i.text)
 
-        # job types
-        for i in job_types:
-            job_types_list.append(i.text)
+            # job types
+            for i in job_types:
+                job_types_list.append(i.text)
 
-        # job posted dates
-        for i in job_posted_dates:
-            job_posted_dates_list.append(i.text)
+            # job posted dates
+            for i in job_posted_dates:
+                job_posted_dates_list.append(i.text)
 
-        # job_descriptions
-        for i in job_descriptions:
-            job_descriptions_list.append(i.text)
-        #progress_recorder.set_progress(k+1, page,f'on iteration {k}')
-        print(len(job_titles_list), len(job_descriptions_list),
-              len(job_posted_dates_list), len(job_types_list),
-              len(company_name_list), len(location_list))
-        df = pd.DataFrame()
-        df['Job Title'] = job_titles_list
-        df['Company Name'] = company_name_list
-        df['description'] = job_descriptions_list
-        df['Posted Date'] = job_posted_dates_list
-        df['Job Type'] = job_types_list
-        df['Location'] = location_list
-        df.to_csv(f'./static/{FILE_NAME}', index=False)
-        if not message or random.random() < 0.25:
-            message = '{0} {1} {2}...'.format(random.choice(verb),
-                                              random.choice(adjective),
-                                              random.choice(noun))
-        self.update_state(state='PROGRESS', meta={'current': k, 'total': page, 'status': message})
+            # job_descriptions
+            for i in job_descriptions:
+                job_descriptions_list.append(i.text)
+            #progress_recorder.set_progress(k+1, page,f'on iteration {k}')
+            print(len(job_titles_list), len(job_descriptions_list),
+                len(job_posted_dates_list), len(job_types_list),
+                len(company_name_list), len(location_list))
+            df = pd.DataFrame()
+            df['Job Title'] = job_titles_list
+            df['Company Name'] = company_name_list
+            df['description'] = job_descriptions_list
+            df['Posted Date'] = job_posted_dates_list
+            df['Job Type'] = job_types_list
+            df['Location'] = location_list
+            json_data = df.to_json(orient="split")
+            # print(df)
+            # import ipdb; ipdb.set_trace()
+            parsed = json.loads(json_data)
+            # print("parsing data", parsed)      
+            scrap_data = Scrappdata(user_id=3, web=tech, scrapped=json.dumps(parsed))
+
+            db.session.add(scrap_data)
+            db.session.commit()
+            print("Data dumped successfully++++++++++++++++++++++++++")
+            # df.to_csv(f'./static/{FILE_NAME}', index=False)
+            if not message or random.random() < 0.25:
+                message = '{0} {1} {2}...'.format(random.choice(verb),
+                                                random.choice(adjective),
+                                                random.choice(noun))
+            self.update_state(state='PROGRESS', meta={'current': k, 'total': page, 'status': message})
     return {'current': 100, 'total': 100, 'status': 'Task completed!'}
 
 """
@@ -246,8 +297,15 @@ def scrap_details(self, tech, location, page):
         df['designation_list'] = designation_list
         df['location_list'] = location_list
         df['qualification_list'] = qualification_list
-        df.to_csv(f'./static/{FILE_NAME}', index=False)
-        save_indeed_data_to_db()
+        json_data = df.to_json(orient="split")
+        parsed = json.loads(json_data)
+        print("parsing data")      
+        scrap_data = DataAll(user=1, web=tech, data=json.dumps(parsed, indent=4))
+        db.session.add(scrap_data)
+        db.session.commit()
+        print("data sved in indeed data base")
+        # df.to_csv(f'./static/{FILE_NAME}', index=False)
+        # save_indeed_data_to_db()
         verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
         adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
         noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
@@ -471,34 +529,37 @@ class Naukridata(db.Model):
 
 def save_naukri_data_to_db():
     data = []
-    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
-                                auth_plugin='mysql_native_password')
-    c_obj = c.cursor()
+    # c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
+    #                             auth_plugin='mysql_native_password')
+    # c_obj = c.cursor()
     with open("./static/naukri.csv", 'r', encoding="latin-1") as f:
         r = csv.reader(f)
         for row in r:
             data.append(row)
 
-    data_csv = "insert into Naukridata(Designation,Company_Name,salary,Experience,Location,Role,Skills,Qualification,Industry_Type,Functional_Area,Employment_Type,Role_Category,Address,Post_By,Post_Date,Website,Url,Job_Description,About_Company) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-    c_obj.executemany(data_csv, data)
-    c.commit()
-    c_obj.close()
+    # data_csv = "insert into Naukridata(Designation,Company_Name,salary,Experience,Location,Role,Skills,Qualification,Industry_Type,Functional_Area,Employment_Type,Role_Category,Address,Post_By,Post_Date,Website,Url,Job_Description,About_Company) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+    # c_obj.executemany(data_csv, data)
+    
+    # c.commit()
+    # c_obj.close()
 
 
 def save_dice_data_to_db():
-    data = []
-    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
-                                auth_plugin='mysql_native_password')
-    c_obj = c.cursor()
-    with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
-        r = csv.reader(f)
-        for row in r:
-            data.append(row)
+    # data = []
+    # c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
+    #                             auth_plugin='mysql_native_password')
+    # c_obj = c.cursor()
+    # with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
+    #     r = csv.reader(f)
+    #     for row in r:
+    #         data.append(row)
 
-    data_csv = "insert into dicedata(Job_Title,Company_Name,description,Posted_Date,Job_Type,Location) values(%s,%s,%s,%s,%s,%s)"
-    c_obj.executemany(data_csv, data)
-    c.commit()
-    c_obj.close()
+    # data_csv = "insert into dicedata(Job_Title,Company_Name,description,Posted_Date,Job_Type,Location) values(%s,%s,%s,%s,%s,%s)"
+    # c_obj.executemany(data_csv, data)
+    # c.commit()
+    # c_obj.close()
+    users = pd.read_csv('./static/indeed.csv')
+    # users.to_sql('dicedata', conn, if_exists='append', index = False)
 
 
 def save_indeed_data_to_db():
@@ -516,17 +577,6 @@ def save_indeed_data_to_db():
     c.commit()
     c_obj.close()
 
-# Login manager
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-with app.app_context():
-    db.create_all()
 
 
 @app.route("/", endpoint="1")
@@ -669,13 +719,10 @@ def show_result(task_id):
 
 @app.route('/status/<task_id>')
 def taskstatus(task_id):
-    print("-------------status")
     web = session.get("web")
     task = None
     if web == 'indeed':
-        print('inside naukri')
         task = scrap_details.AsyncResult(task_id)
-        print(task.id)
     elif web == 'dice':
         task = extract_dice_jobs.AsyncResult(task_id)
     elif web == 'naukri':
@@ -719,6 +766,7 @@ def export():
     elif web == "dice":
         csv_file = 'dice.csv'
         csv_path = os.path.join(csv_dir, csv_file)
+        save_dice_data_to_db()
         return send_file(csv_path, as_attachment=True)
     elif web == "naukri":
         csv_file = 'naukri.csv'
@@ -729,5 +777,5 @@ def export():
 
 
 if __name__ == "__main__":
-    # sess.init_app(app)
+    sess.init_app(app)
     app.run(debug=True, host="0.0.0.0")
