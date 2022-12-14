@@ -1,10 +1,11 @@
 import csv
 import os
+import json
 import random
 import re
 import time
 from datetime import datetime
-
+import redis
 import pandas as pd
 from bs4 import BeautifulSoup
 from celery import Celery
@@ -22,26 +23,157 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 from werkzeug.security import check_password_hash, generate_password_hash
-
 from config import *
-
+import config
+from multiprocessing import Process
+'''
+def create_app(config_class=config):
+    app = Flask(__name__)
+    app.config.from_object(config)
+    return app
+'''
 app = Flask(__name__)
 
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = SESSION_TYPE
+"""session configuration"""
+app.config['SESSION_TYPE'] = SESSION_TYPE
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
 app.config["SECRET_KEY"] = SECRET_KEY
-sess = Session()
+app.config['SESSION_REDIS'] = redis.from_url('redis://127.0.0.1:6379/0')
+
+sess = Session(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-
-app.config['CELERY_BROKER_URL'] = BROKER_URL
-app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
-# app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
+#app.config['CELERY_BROKER_URL'] = BROKER_URL
+#app.config['CELERY_RESULT_BACKEND'] = BROKER_URL
+#app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
+#app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379'
+celery = Celery(app.name, broker='redis://127.0.0.1:6379/0', backend='redis://127.0.0.1:6379/0')
 celery.conf.update(app.config)
 
+class Data(db.Model):
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user = db.Column(db.Integer)
+    web = db.Column(db.String(50))
+    created_date = db.Column(db.DateTime, nullable=False, default=datetime.now())
+    data = db.Column(db.Text)
+
+class User(db.Model,UserMixin):
+    id = db.Column('User_id', db.Integer, primary_key=True)
+    first_name = db.Column(db.String(100), unique=False, nullable=False)
+    last_name = db.Column(db.String(100), unique=False, nullable=False)
+    email = db.Column(db.String(50), unique=True, nullable=False)
+    mobile = db.Column(db.String(12), unique=True, nullable=False)
+    password = db.Column(db.String(200), unique=True, nullable=False)
+    status = db.Column(db.String(100), unique=False, nullable=False)
+    created_date = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_date = db.Column(db.DateTime, nullable=True, onupdate=datetime.now)
+
+
+class Dicedata(db.Model):
+    id = db.Column( db.Integer, primary_key=True)
+    Job_Title = db.Column(db.String(500), unique=False, nullable=False)
+    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
+    description = db.Column(db.String(1000), unique=False, nullable=False)
+    Posted_Date = db.Column(db.String(100), unique=False, nullable=False)
+    Job_Type = db.Column(db.String(300), unique=False, nullable=False)
+    Location = db.Column(db.String(300), unique=False, nullable=False)
+
+
+class Indeeddata(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
+    Company_url = db.Column(db.String(500), unique=False, nullable=False)
+    salary = db.Column(db.String(1000), unique=False, nullable=False)
+    designation = db.Column(db.String(100), unique=False, nullable=False)
+    location = db.Column(db.String(300), unique=False, nullable=False)
+    qualification = db.Column(db.String(300), unique=False, nullable=False)
+
+
+class Naukridata(db.Model):
+    id = db.Column( db.Integer, primary_key=True)
+    Designation = db.Column(db.String(500), unique=False, nullable=False)
+    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
+    salary = db.Column(db.String(1000), unique=False, nullable=False)
+    Experience = db.Column(db.String(300), unique=False, nullable=False)
+    Location = db.Column(db.String(300), unique=False, nullable=False)
+    Role = db.Column(db.String(300), unique=False, nullable=False)
+    Skills = db.Column(db.String(300), unique=False, nullable=False)
+    Qualification = db.Column(db.String(300), unique=False, nullable=False)
+    Industry_Type = db.Column(db.String(300), unique=False, nullable=False)
+    Functional_Area = db.Column(db.String(300), unique=False, nullable=False)
+    Employment_Type = db.Column(db.String(300), unique=False, nullable=False)
+    Role_Category = db.Column(db.String(300), unique=False, nullable=False)
+    Address = db.Column(db.String(300), unique=False, nullable=False)
+    Post_By = db.Column(db.String(300), unique=False, nullable=False)
+    Post_Date = db.Column(db.String(300), unique=False, nullable=False)
+    Website = db.Column(db.String(300), unique=False, nullable=False)
+    Url = db.Column(db.String(300), unique=False, nullable=False)
+    Job_Description = db.Column(db.String(3000), unique=False, nullable=False)
+    About_Company = db.Column(db.String(3000), unique=False, nullable=False)
+
+'''
+def save_naukri_data_to_db():
+    data = []
+    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
+                                auth_plugin='mysql_native_password')
+    c_obj = c.cursor()
+    with open("./static/naukri.csv", 'r', encoding="latin-1") as f:
+        r = csv.reader(f)
+        for row in r:
+            data.append(row)
+
+    data_csv = "insert into Naukridata(Designation,Company_Name,salary,Experience,Location,Role,Skills,Qualification,Industry_Type,Functional_Area,Employment_Type,Role_Category,Address,Post_By,Post_Date,Website,Url,Job_Description,About_Company) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+    c_obj.executemany(data_csv, data)
+    c.commit()
+    c_obj.close()
+
+
+def save_dice_data_to_db():
+    data = []
+    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
+                                auth_plugin='mysql_native_password')
+    c_obj = c.cursor()
+    with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
+        r = csv.reader(f)
+        for row in r:
+            data.append(row)
+
+    data_csv = "insert into dicedata(Job_Title,Company_Name,description,Posted_Date,Job_Type,Location) values(%s,%s,%s,%s,%s,%s)"
+    c_obj.executemany(data_csv, data)
+    c.commit()
+    c_obj.close()
+
+
+def save_indeed_data_to_db():
+    data = []
+    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
+                                auth_plugin='mysql_native_password')
+    c_obj = c.cursor()
+    with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
+        r = csv.reader(f)
+        for row in r:
+            data.append(row)
+
+    data_csv = "insert into indeeddata(Company_Name,Company_url,salary,designation,location,qualification) values(%s,%s,%s,%s,%s,%s)"
+    c_obj.executemany(data_csv, data)
+    c.commit()
+    c_obj.close()
+'''
+# Login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+with app.app_context():
+    db.create_all()
 
 options = webdriver.ChromeOptions()
 options.headless = True
@@ -54,18 +186,38 @@ options.add_argument("--disable-extensions")
 options.add_argument("--start-maximized")
 options.add_argument('--disable-gpu')
 options.add_argument('--disable-dev-shm-usage')
-driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
+options.add_argument("no-sandbox")
+options.add_argument("disable-infobars")
+options.add_argument("disable-dev-shm-usage")
+options.add_argument("disable-browser-side-navigation")
+options.add_argument("disable-gpu")
+options.add_argument("--dns-prefetch-disable")
+options.add_argument("disable-extensions")
+options.add_argument("force-device-scale-factor=1")
+options.add_argument("enable-features=NetworkServiceInProcess")
+options.add_argument("--aggressive-cache-discard")
+options.add_argument("--disable-cache")
+options.add_argument("--disable-application-cache")
+options.add_argument("--disable-offline-load-stale-cache")
+options.add_argument("start-maximized")
+options.add_argument("lang=de")
+options.add_argument("allow-running-insecure-content")
+options.add_argument("inprivate")
+#driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME, options=options)
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
-# driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
+
+
+
 
 """
 Dice Crawler
 """
+import sqlite3
 
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
+    driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
     FILE_NAME = 'dice.csv'
-    driver.maximize_window()
     time.sleep(3)
     job_titles_list, company_name_list, location_list, job_types_list = [], [], [], []
     job_posted_dates_list, job_descriptions_list = [], []
@@ -74,9 +226,8 @@ def extract_dice_jobs(self, tech, location, page=1):
     noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
     message = ''
     for k in range(1, int(page)):
-        URL = f"https://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
+        URL = f"http://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
         driver.get(URL)
-        driver.maximize_window()
         try:
             input = driver.find_element(By.ID, "typeaheadInput")
             input.click()
@@ -128,6 +279,22 @@ def extract_dice_jobs(self, tech, location, page=1):
         df['Job Type'] = job_types_list
         df['Location'] = location_list
         df.to_csv(f'./static/{FILE_NAME}', index=False)
+        #string_data = df.to_string(header=False, index=False)
+        #print(string_data)
+        #import ipdb; ipdb.set_trace()
+        #json_data = df.to_json(orient="split")
+        #parsed = json.loads(json_data)
+        #text_data = json.stringify(json_data)
+        #with app.app_context():
+            #scrap_data = DataAll(user=1, web=tech, data="ajinkya pawar")
+            # print(scrap_data.__doc__())
+            #db.session.add_all(scrap_data)
+            #db.session.commit()
+        #connection = sqlite3.connect('instance/scrapper.sqlite3')
+        #print(connection)
+        #cursor = connection.cursor()
+        #data = "insert into data(user, web, created_date, data) values(1,'python',datetime.now(),json_data)"
+        #cursor.execute(data)
         if not message or random.random() < 0.25:
             message = '{0} {1} {2}...'.format(random.choice(verb),
                                               random.choice(adjective),
@@ -135,37 +302,41 @@ def extract_dice_jobs(self, tech, location, page=1):
         self.update_state(state='PROGRESS', meta={'current': k, 'total': page, 'status': message})
     return {'current': 100, 'total': 100, 'status': 'Task completed!'}
 
+
+
 """
 Indeed.com crawler
 """
 
-job_detail_links = []
+
 job_posted_dates_list, job_descriptions_list = [], []
 description_list, company_name_list, designation_list, salary_list, company_url = [], [], [], [], []
 location_list, qualification_list = [], []
 BASE_URL = 'https://in.indeed.com'
 
-def get_job_detail_links(tech, location, page):
-
-    for page in range(0, page):
-        time.sleep(5)
-        URL = f"https://in.indeed.com/jobs?q={tech}&l={location}&start={page * 10}"
-        try:
-            driver.get(URL)
-        except WebDriverException:
-            print("page down")
-
-        soup = BeautifulSoup(driver.page_source, 'lxml')
-
-        for outer_artical in soup.findAll(attrs={'class': "css-1m4cuuf e37uo190"}):
-            for inner_links in outer_artical.findAll(
-                    attrs={'class': "jobTitle jobTitle-newJob css-bdjp2m eu4oa1w0"}):
-                job_detail_links.append(
-                    f"{BASE_URL}{inner_links.a.get('href')}")
-
 
 @celery.task(bind=True)
 def scrap_details(self, tech, location, page):
+    driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
+    job_detail_links = []
+    def get_job_detail_links(tech, location, page):
+
+        for page in range(0, page):
+            time.sleep(5)
+            URL = f"https://in.indeed.com/jobs?q={tech}&l={location}&start={page*10}"
+            try:
+                driver.get(URL)
+            except WebDriverException:
+                print("page down")
+
+            soup = BeautifulSoup(driver.page_source, 'lxml')
+
+            for outer_artical in soup.findAll(attrs={'class': "css-1m4cuuf e37uo190"}):
+                for inner_links in outer_artical.findAll(
+                        attrs={'class': "jobTitle jobTitle-newJob css-bdjp2m eu4oa1w0"}):
+                    job_detail_links.append(
+                        f"{BASE_URL}{inner_links.a.get('href')}")
+
     print("___________", "Indeed")
     message = ''
     get_job_detail_links(tech, location, page)
@@ -243,7 +414,6 @@ def scrap_details(self, tech, location, page):
         df['location_list'] = location_list
         df['qualification_list'] = qualification_list
         df.to_csv(f'./static/{FILE_NAME}', index=False)
-        save_indeed_data_to_db()
         verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
         adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
         noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
@@ -259,35 +429,35 @@ def scrap_details(self, tech, location, page):
 """
 Naukari.com Crawler
 """
-BASE_URL_naukari = 'https://www.naukri.com/'
-job_detail_links_naukari = []
 description_list_naukari, company_name_list_naukari, designation_list_naukari, salary_list_naukari, company_url_naukari = [], [], [], [], []
 location_list_naukari, qualification_list_naukari = [], []
-FILE_NAME = 'naukri.csv'
-def get_job_detail_links_naukari(tech, location, page):
+BASE_URL_naukari = 'https://www.naukri.com/'
 
-    for page_no in range(0, page):
-        print("-----------------in job link")
-        URL = f"https://www.naukri.com/python-jobs-in-{location}-{page_no}?k={tech}&l={location}"
-        driver.get(URL)
-        time.sleep(5)
-        soup = BeautifulSoup(driver.page_source, 'lxml')
+
+
+@celery.task(bind=True)
+def scrap_naukari(self, tech, location, page):
+    FILE_NAME = 'naukri.csv'
+    job_detail_links_naukari = []
+    driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
+    def get_job_detail_links_naukari(tech, location, page):
+
+        for page_no in range(0, page):
+            print("-----------------in job link")
+            URL = f"https://www.naukri.com/python-jobs-in-{location}-{page_no}?k={tech}&l={location}"
+            driver.get(URL)
+            time.sleep(5)
+            soup = BeautifulSoup(driver.page_source, 'lxml')
 
         for outer_artical in soup.findAll(attrs={'class': "jobTuple bgWhite br4 mb-8"}):
             for inner_links in outer_artical.find(attrs={'class': "jobTupleHeader"}).findAll(
                     attrs={'class': "title fw500 ellipsis"}):
                 job_detail_links_naukari.append(inner_links.get('href'))
-
-
-@celery.task(bind=True)
-def scrap_naukari(self, tech, location, page):
+    get_job_detail_links_naukari(tech, location, page)
     verb = ['Starting up', 'Booting', 'Repairing', 'Loading', 'Checking']
     adjective = ['master', 'radiant', 'silent', 'harmonic', 'fast']
     noun = ['solar array', 'particle reshaper', 'cosmic ray', 'orbiter', 'bit']
     message = ''
-    print("-----------------above job link")
-    get_job_detail_links_naukari(tech, location, page)
-    print("-----------------below job link")
     designation_list_naukari, company_name_list_naukari, experience_list, salary_list__naukari = [], [], [], []
     location_list__naukari, job_description_list, role_list, industry_type_list = [], [], [], []
     functional_area_list, employment_type_list, role_category_list, education_list = [], [], [], []
@@ -341,7 +511,8 @@ def scrap_naukari(self, tech, location, page):
             except KeyError or ValueError:
                 website_list.append("NA")
             except:
-                website_list.apssage
+                website_list.append("NA")
+
             details = []
             try:
                 for i in soup.find(attrs={'class': "other-details"}).findAll(attrs={'class': "details"}):
@@ -385,144 +556,27 @@ def scrap_naukari(self, tech, location, page):
                               meta={'current': link, 'total': len(job_detail_links_naukari), 'status': message})
 
     df = pd.DataFrame()
-    df['Designation'] = designation_list_naukari
-    df['Company Name'] = company_name_list_naukari
-    df['Salary'] = salary_list_naukari
-    df['Experience'] = experience_list
-    df['Location'] = location_list_naukari
-    df['Role'] = role_list
-    df['Skills'] = key_skill_list
-    df['Qualification'] = education_list
-    df['Industry Type'] = industry_type_list
-    df['Functional Area'] = functional_area_list
-    df['Employment Type'] = employment_type_list
-    df['Role Category'] = role_category_list
-    df['Address'] = address_list
-    df['Post By'] = post_by_list
-    df['Post Date'] = post_date_list
-    df['Website'] = website_list
-    df['Url'] = url_list
-    df['Job Description'] = job_description_list
-    df['About Company'] = about_company_list
+    df['Designation'] = pd.Series(designation_list_naukari)
+    df['Company Name'] = pd.Series(company_name_list_naukari)
+    df['Salary'] = pd.Series(salary_list_naukari)
+    df['Experience'] = pd.Series(experience_list)
+    df['Location'] = pd.Series(location_list_naukari)
+    df['Role'] = pd.Series(role_list)
+    df['Skills'] = pd.Series(key_skill_list)
+    df['Qualification'] = pd.Series(education_list)
+    df['Industry Type'] = pd.Series(industry_type_list)
+    df['Functional Area'] = pd.Series(functional_area_list)
+    df['Employment Type'] = pd.Series(employment_type_list)
+    df['Role Category'] = pd.Series(role_category_list)
+    df['Address'] = pd.Series(address_list)
+    df['Post By'] = pd.Series(post_by_list)
+    df['Post Date'] = pd.Series(post_date_list)
+    df['Website'] = pd.Series(website_list)
+    df['Url'] = pd.Series(url_list)
+    df['Job Description'] = pd.Series(job_description_list)
+    df['About Company'] = pd.Series(about_company_list)
     df.to_csv(f'./static/{FILE_NAME}', index=False)
-    save_naukri_data_to_db()
     driver.close()
-
-
-class User(db.Model,UserMixin):
-    id = db.Column('User_id', db.Integer, primary_key=True)
-    first_name = db.Column(db.String(100), unique=False, nullable=False)
-    last_name = db.Column(db.String(100), unique=False, nullable=False)
-    email = db.Column(db.String(50), unique=True, nullable=False)
-    mobile = db.Column(db.String(12), unique=True, nullable=False)
-    password = db.Column(db.String(200), unique=True, nullable=False)
-    status = db.Column(db.String(100), unique=False, nullable=False)
-    created_date = db.Column(
-        db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_date = db.Column(db.DateTime, nullable=True, onupdate=datetime.now)
-
-
-class Dicedata(db.Model):
-    id = db.Column( db.Integer, primary_key=True)
-    Job_Title = db.Column(db.String(500), unique=False, nullable=False)
-    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
-    description = db.Column(db.String(1000), unique=False, nullable=False)
-    Posted_Date = db.Column(db.String(100), unique=False, nullable=False)
-    Job_Type = db.Column(db.String(300), unique=False, nullable=False)
-    Location = db.Column(db.String(300), unique=False, nullable=False)
-
-
-class Indeeddata(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
-    Company_url = db.Column(db.String(500), unique=False, nullable=False)
-    salary = db.Column(db.String(1000), unique=False, nullable=False)
-    designation = db.Column(db.String(100), unique=False, nullable=False)
-    location = db.Column(db.String(300), unique=False, nullable=False)
-    qualification = db.Column(db.String(300), unique=False, nullable=False)
-
-
-class Naukridata(db.Model):
-    id = db.Column( db.Integer, primary_key=True)
-    Designation = db.Column(db.String(500), unique=False, nullable=False)
-    Company_Name = db.Column(db.String(500), unique=False, nullable=False)
-    salary = db.Column(db.String(1000), unique=False, nullable=False)
-    Experience = db.Column(db.String(300), unique=False, nullable=False)
-    Location = db.Column(db.String(300), unique=False, nullable=False)
-    Role = db.Column(db.String(300), unique=False, nullable=False)
-    Skills = db.Column(db.String(300), unique=False, nullable=False)
-    Qualification = db.Column(db.String(300), unique=False, nullable=False)
-    Industry_Type = db.Column(db.String(300), unique=False, nullable=False)
-    Functional_Area = db.Column(db.String(300), unique=False, nullable=False)
-    Employment_Type = db.Column(db.String(300), unique=False, nullable=False)
-    Role_Category = db.Column(db.String(300), unique=False, nullable=False)
-    Address = db.Column(db.String(300), unique=False, nullable=False)
-    Post_By = db.Column(db.String(300), unique=False, nullable=False)
-    Post_Date = db.Column(db.String(300), unique=False, nullable=False)
-    Website = db.Column(db.String(300), unique=False, nullable=False)
-    Url = db.Column(db.String(300), unique=False, nullable=False)
-    Job_Description = db.Column(db.String(3000), unique=False, nullable=False)
-    About_Company = db.Column(db.String(3000), unique=False, nullable=False)
-
-
-def save_naukri_data_to_db():
-    data = []
-    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
-                                auth_plugin='mysql_native_password')
-    c_obj = c.cursor()
-    with open("./static/naukri.csv", 'r', encoding="latin-1") as f:
-        r = csv.reader(f)
-        for row in r:
-            data.append(row)
-
-    data_csv = "insert into Naukridata(Designation,Company_Name,salary,Experience,Location,Role,Skills,Qualification,Industry_Type,Functional_Area,Employment_Type,Role_Category,Address,Post_By,Post_Date,Website,Url,Job_Description,About_Company) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-    c_obj.executemany(data_csv, data)
-    c.commit()
-    c_obj.close()
-
-
-def save_dice_data_to_db():
-    data = []
-    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
-                                auth_plugin='mysql_native_password')
-    c_obj = c.cursor()
-    with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
-        r = csv.reader(f)
-        for row in r:
-            data.append(row)
-
-    data_csv = "insert into dicedata(Job_Title,Company_Name,description,Posted_Date,Job_Type,Location) values(%s,%s,%s,%s,%s,%s)"
-    c_obj.executemany(data_csv, data)
-    c.commit()
-    c_obj.close()
-
-
-def save_indeed_data_to_db():
-    data = []
-    c = mysql.connector.connect(host='localhost', user='root', database='scrap', password='12345',
-                                auth_plugin='mysql_native_password')
-    c_obj = c.cursor()
-    with open("./static/indeed.csv", 'r', encoding="latin-1") as f:
-        r = csv.reader(f)
-        for row in r:
-            data.append(row)
-
-    data_csv = "insert into indeeddata(Company_Name,Company_url,salary,designation,location,qualification) values(%s,%s,%s,%s,%s,%s)"
-    c_obj.executemany(data_csv, data)
-    c.commit()
-    c_obj.close()
-
-# Login manager
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-with app.app_context():
-    db.create_all()
 
 
 @app.route("/", endpoint="1")
@@ -622,15 +676,19 @@ def search():
         #c = celery.send_task("tasks.scrap_details", args=[tech, location], kwargs={ "page": page})
         task = scrap_details.apply_async([tech, location, page])
         session['task_id'] = task.id
+        print(task.id, "---------------------Indeed-----------------------")
         return jsonify({}), 202, {'Location': url_for('taskstatus', task_id=task.id)}
     if web == "dice":
+        #p = Process(target=extract_dice_jobs, args=(tech, location, page, session_id))
         task = extract_dice_jobs.apply_async([tech, location, page])
+        #c = celery.send_task("tasks.extract_dice_jobs", args=[tech, location], kwargs={ "page": page})
         session['task_id'] = task.id
         return jsonify({}), 202, {'Location': url_for('taskstatus', task_id=task.id)}
     if web == "naukri":
         #c = celery.send_task("tasks.scrap_naukari", args=[tech], kwargs={"page": page})
         task = scrap_naukari.apply_async([tech, location, page])
         session['task_id'] = task.id
+        print(task.id, "---------------------Naukri-----------------------")
         return jsonify({}), 202, {'Location': url_for('taskstatus', task_id=task.id)}
     #return render_template("task.html", task_id=task_id)
 
@@ -645,17 +703,17 @@ def show_result(task_id):
     if status.ready():
         if web == "indeed":
             try:
-                df = pd.read_csv("./static/indeed.csv")
+                df = pd.read_csv("/static/indeed.csv")
             except:
                 "NO DATA"
         elif web == "dice":
             try:
-                df = pd.read_csv("./static/dice.csv")
+                df = pd.read_csv("/api/static/dice.csv")
             except:
                 "NO DATA"
         elif web == "naukri":
             try:
-                df = pd.read_csv("./static/naukri.csv")
+                df = pd.read_csv("/static/data/naukri.csv")
             except:
                 "NO DATA"
     else:
@@ -669,7 +727,6 @@ def taskstatus(task_id):
     web = session.get("web")
     task = None
     if web == 'indeed':
-        print('inside naukri')
         task = scrap_details.AsyncResult(task_id)
         print(task.id)
     elif web == 'dice':
@@ -707,7 +764,7 @@ def taskstatus(task_id):
 @app.route("/export")
 def export():
     web = session.get("web")
-    csv_dir = "./static"
+    csv_dir = "/api/static/"
     if web == "indeed":
         csv_file = 'indeed.csv'
         csv_path = os.path.join(csv_dir, csv_file)

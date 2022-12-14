@@ -119,7 +119,7 @@ display: none;
                 data: {'web': webValue, 'tech':techValue, 'location': locationValue, 'pages':pageValue},
                 success: function(data, status, request) {
                     status_url = request.getResponseHeader('Location');
-                    update_progress(status_url, nanobar, div[0]);
+                    update_progress(status_url, nanobar, document.getElementById("progress"));
                 },
                 error: function() {
                     alert('Unexpected error');
@@ -139,7 +139,7 @@ display: none;
                 if (data['state'] != 'PENDING' && data['state'] != 'PROGRESS') {
                     if ('result' in data) {
                         // show result
-
+                        $("#start-bg-job").css("display", "block");
                         $(status_div.childNodes[3]).text(data['result']);
 
                     }
@@ -171,7 +171,6 @@ display: none;
         $(function() {
             $('#start-bg-job').click(start_long_task);
         });
-
     </script>
     </div>
 <br>
@@ -183,14 +182,7 @@ display: none;
     <form action="/result/{{session['task_id']}}">
     <button class="btn btn-success " id="myshow" >Show Data</button>
         </form>
-    <form>
-     <button class="btn btn-success" onclick="http://localhost:5555/api/task/info/{{session['task_id']}}" id="2">Task Details</button>
-    </form>
-        <form>
-    <button class="btn btn-success" onclick="http://localhost:5555/api/task/result/{{session['task_id']}}" id="3">Task Result</button>
-      </form>
-    <form>
-        <button class="btn btn-success" onclick="http://localhost:5555/tasks" id="4">All Tasks Status</button>
+   
 <form>
 </div>
 
