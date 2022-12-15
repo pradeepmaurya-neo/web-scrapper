@@ -15,12 +15,11 @@ services:
     build:
       context: .
     restart: always
-    volumes:
-      - static:/api/static/
     ports:
       - "5000:5000"
     depends_on:
       - redis
+ 
 
   nginx:
       image: nginx:latest
@@ -42,7 +41,6 @@ services:
       dockerfile: Dockerfile
     restart: always
     command: celery -A app.celery worker -l info
-    # command:  ['celery', '-A', 'app.tasks', 'worker']
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
@@ -50,6 +48,3 @@ services:
       - redis
     depends_on:
       - redis
-  
-volumes:
-  static:
