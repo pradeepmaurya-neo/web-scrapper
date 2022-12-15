@@ -57,18 +57,12 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 sess=Session(app)
 
-# conn = sqlite3.connect('scrapper.sqlite3')
-# c = conn.cursor()
 
 # app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379'
 # app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 celery = Celery("app", broker=app.config['CELERY_BROKER_URL'], backend=app.config['CELERY_RESULT_BACKEND'])
 celery.conf.update(app.config)
 CORS(app)
-
-# with app.app_context():
-#     # within this block, current_app points to app.
-#     current_app.name
 
 options = webdriver.ChromeOptions()
 options.headless = True
@@ -81,7 +75,7 @@ options.add_argument("--disable-extensions")
 options.add_argument("--start-maximized")
 options.add_argument('--disable-gpu')
 options.add_argument('--disable-dev-shm-usage')
-driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
+# driver=webdriver.Remote(command_executor='http://chrome:4444/wd/hub',desired_capabilities=DesiredCapabilities.CHROME)
 # driver = webdriver.Chrome(executable_path="C:\Program Files\Google\chromedriver\chromedriver.exe", options=options)
 # driver = webdriver.Chrome(executable_path=ChromeDriverManager().install())
 
@@ -97,19 +91,19 @@ class Scrappdata(db.Model):
 """
 Dice Crawler
 """
-@app.route("/test/data")
-def test():
-    scrap_data = Scrappdata.query.get(6)
+@app.route("/test/data/<int:id>")
+def test(id):
+    scrap_data = Scrappdata.query.get(id)
     response = scrap_data.scrapped
-    return jsonify(response)
-    # csv = response.to_csv("dice.csv", index=False)
-    # return send_file(csv, as_attachment=True)
+    data = json.loads(response)
+    df = pd.DataFrame.from_dict(data)
+    df.to_csv('csvfile.csv', encoding='utf-8', index=True)   
+    return send_file('csvfile.csv', as_attachment=True)
+
 
 
 @celery.task(bind=True)
 def extract_dice_jobs(self, tech, location, page=1):
-    # FILE_NAME = 'dice.csv'
-    # driver.maximize_window()
     with app.app_context():
         time.sleep(3)
         job_titles_list, company_name_list, location_list, job_types_list = [], [], [], []
@@ -121,7 +115,6 @@ def extract_dice_jobs(self, tech, location, page=1):
         for k in range(1, int(page)):
             URL = f"https://www.dice.com/jobs?q={tech}&location={location}&radius=30&radiusUnit=mi&page={k}&pageSize=20&language=en&eid=S2Q_,bw_1"
             driver.get(URL)
-            # driver.maximize_window()
             try:
                 input = driver.find_element(By.ID, "typeaheadInput")
                 input.click()
@@ -172,17 +165,12 @@ def extract_dice_jobs(self, tech, location, page=1):
             df['Posted Date'] = job_posted_dates_list
             df['Job Type'] = job_types_list
             df['Location'] = location_list
-            json_data = df.to_json(orient="split")
-            # print(df)
-            # import ipdb; ipdb.set_trace()
-            parsed = json.loads(json_data)
-            # print("parsing data", parsed)      
+            json_data = df.to_json()
+            parsed = json.loads(json_data)    
             scrap_data = Scrappdata(user_id=3, web=tech, scrapped=json.dumps(parsed))
-
             db.session.add(scrap_data)
             db.session.commit()
-            print("Data dumped successfully++++++++++++++++++++++++++")
-            # df.to_csv(f'./static/{FILE_NAME}', index=False)
+
             if not message or random.random() < 0.25:
                 message = '{0} {1} {2}...'.format(random.choice(verb),
                                                 random.choice(adjective),
