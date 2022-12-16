@@ -1,18 +1,14 @@
-import csv
 import os
 from flask import json
 import random
 import re
 import time
 import json
-# import mysql.connector
-import sqlite3
 from datetime import datetime
 import redis
 import pandas as pd
 from bs4 import BeautifulSoup
 from celery import Celery
-import logging
 import flask_login
 from celery.result import AsyncResult
 from flask import (Flask, jsonify, redirect, render_template, request, 
@@ -29,10 +25,8 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from webdriver_manager.chrome import ChromeDriverManager
 from werkzeug.security import check_password_hash, generate_password_hash
 from config import *
-import config
-from multiprocessing import Process
-import io
-from flask import stream_with_context
+
+
 
 app = Flask(__name__)
 
@@ -60,16 +54,6 @@ celery.conf.update(app.config)
 """
 Models
 """
-@app.route("/test/data/<int:id>")
-def test(id):
-    scrap_data = Scrappdata.query.get(id)
-    response = scrap_data.scrapped
-    data = json.loads(response)
-    df = pd.DataFrame.from_dict(data)
-    df.to_csv('csvfile.csv', encoding='utf-8', index=True)   
-    return send_file('csvfile.csv', as_attachment=True)
-
-
 
 class ScrapData(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -94,7 +78,6 @@ class User(db.Model, UserMixin):
 """
 CSV Download
 """
-
    
 @app.route('/download')
 def download():
@@ -245,11 +228,11 @@ def extract_dice_jobs(self, web, tech, location, user_id, page=1):
                                                 random.choice(adjective),
                                                 random.choice(noun))
             self.update_state(state='PROGRESS', meta={'current': k, 'total': page, 'status': message})
-        json_data = df.to_json()
-        parsed = json.loads(json_data)
-        scrap_data = ScrapData(user_id=user_id, web=web, keywords=tech, scrapped=json.dumps(parsed))
-        db.session.add(scrap_data)
-        db.session.commit()
+            json_data = df.to_json()
+            parsed = json.loads(json_data)
+            scrap_data = ScrapData(user_id=user_id, web=web, keywords=tech, scrapped=json.dumps(parsed))
+            db.session.add(scrap_data)
+            db.session.commit()
         return {'current': 100, 'total': 100, 'status': 'Task completed!'}
 
 """
@@ -366,11 +349,11 @@ def scrap_details(self, tech, location, page, web, user_id):
                                             random.choice(adjective),
                                             random.choice(noun))
             self.update_state(state='PROGRESS', meta={'current': link, 'total': len(job_detail_links), 'status': message})
-        json_data = df.to_json()
-        parsed = json.loads(json_data)
-        scrap_data = ScrapData(user_id=user_id, web=web, keywords=tech, scrapped=json.dumps(parsed))
-        db.session.add(scrap_data)
-        db.session.commit()
+            json_data = df.to_json()
+            parsed = json.loads(json_data)
+            scrap_data = ScrapData(user_id=user_id, web=web, keywords=tech, scrapped=json.dumps(parsed))
+            db.session.add(scrap_data)
+            db.session.commit()
         return {'current': 100, 'total': 100, 'status': 'Task completed!'}
 
 
@@ -384,7 +367,6 @@ BASE_URL_naukari = 'https://www.naukri.com/'
 
 @celery.task(bind=True)
 def scrap_naukari(self, tech, location, page, web, user_id):
-    FILE_NAME = 'naukri.csv'
     job_detail_links_naukari = []
     driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(), options=options)
     with app.app_context():
@@ -690,7 +672,6 @@ def export():
     elif web == "dice":
         csv_file = 'dice.csv'
         csv_path = os.path.join(csv_dir, csv_file)
-        save_dice_data_to_db()
         return send_file(csv_path, as_attachment=True)
     elif web == "naukri":
         csv_file = 'naukri.csv'
