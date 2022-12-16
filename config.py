@@ -1,4 +1,4 @@
-SESSION_TYPE = 'redis'
+SESSION_TYPE = "redis"
 BROKER_URL = 'redis://redis:6379'
 DATABASE_URL = 'sqlite:///scrapper.sqlite3'
 # DATABASE_URL = 'mysql://root:root@db/db'

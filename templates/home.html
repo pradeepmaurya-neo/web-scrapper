@@ -22,7 +22,8 @@
   <title>Web Crawler || Home</title>
     <style rel="stylesheet" type="text/css">
 .container {
-margin-top: 40px;
+margin: 0;
+padding: 0;
 }
 .inner
 {
@@ -36,26 +37,23 @@ margin-top: 40px;
   visibility: hidden;
 }
 
+table{
+  border: 1px solid black;
+}
 
-
-/* <!--#myDIV{
-display: none;
-}--> */
 </style>
 </head>
 <body>
 
-<div class="row" >
-    <div class="col col-sm-1 " style="margin-left:85%; margin-top:1%">
-    <a href="/logout" class="btn btn-danger">Logout</a>
-    </div>
+<div class="row" style="display:flex">
+    
 
-    <div style="margin-left:5%">
+    <div style="margin-left:5%; margin-top:2% ">
     <h2>Job Scrapper</h2>
     <h4> What job do you Want to search?</h4>
-        </div>
+    </div>
 
-    <div class="col col-sm-6" style="margin-left:5%">
+    <div class="col-sm-5" style="margin-left:5%">
     <select name="web" id="web">
         <option value = "none" selected hidden>Select Website</option>
             <option  value="indeed" >Indeed</option>
@@ -72,12 +70,28 @@ display: none;
             <button class="btn btn-success" id="start-bg-job" style="padding-left:5%" >search</button>
     </div>
 
-    <div class="col col-sm-5" style="padding-left:9%">
-    <img src="./static/neosoft.jpg" alt="Neosoft">
+    <div class="col-sm-5" style="margin-left:4%">
+        <table class="table">
+                <thead>
+                    <tr>
+                    <th>Web</th>
+                    <th>Keywords</th>
+                    <th>created_date</th>
+                    <th>Download</th>
+                    </tr>
+                </thead>
+                {% for result in results %}
+                <tbody>
+                    <tr>
+                    <td>{{result.web}}</td>
+                    <td>{{result.keywords}}</td>
+                    <td>{{result.created_date}}</td>
+                    <td> <a href="{{ url_for('download_report', id=result.id)}}" > Download </a></td>
+                    </tr>
+                </tbody>
+                {% endfor %}
+        </table>
     </div>
-
-
-
 </div>
 <br><br>
     <div id="progress"></div>
@@ -89,7 +103,9 @@ display: none;
           var percent = 0
            $( document ).ready(function() {
                 $('#mydownload').hide()
+                $('#mytable').hide()
                 $('#myshow').hide()
+                $('#mydiv').hide()
                 $('#11').hide()
                 $('#2').hide()
                 $('#3').hide()
@@ -119,7 +135,7 @@ display: none;
                 data: {'web': webValue, 'tech':techValue, 'location': locationValue, 'pages':pageValue},
                 success: function(data, status, request) {
                     status_url = request.getResponseHeader('Location');
-                    update_progress(status_url, nanobar, div[0]);
+                    update_progress(status_url, nanobar, document.getElementById("progress"));
                 },
                 error: function() {
                     alert('Unexpected error');
@@ -139,7 +155,7 @@ display: none;
                 if (data['state'] != 'PENDING' && data['state'] != 'PROGRESS') {
                     if ('result' in data) {
                         // show result
-
+                        $("#start-bg-job").css("display", "block");
                         $(status_div.childNodes[3]).text(data['result']);
 
                     }
@@ -160,7 +176,9 @@ display: none;
             if(percent==100){
                 console.log("in 100% block")
                 $('#mydownload').show();
+                $('#mytable').show();
                 $('#myshow').show();
+                $('#mydiv').show();
                 $('#11').show();
                 $('#2').show();
                 $('#3').show();
@@ -171,28 +189,14 @@ display: none;
         $(function() {
             $('#start-bg-job').click(start_long_task);
         });
-
     </script>
     </div>
 <br>
-
 <div class="d-flex gap-2 flex-row col-6  mx-auto justify-content-center" id="myDiv" >
-    <form action="/export">
-    <button class="btn btn-success " id="mydownload" >Download</button>
-        </form>
-    <form action="/result/{{session['task_id']}}">
-    <button class="btn btn-success " id="myshow" >Show Data</button>
-        </form>
-    <form>
-     <button class="btn btn-success" onclick="http://localhost:5555/api/task/info/{{session['task_id']}}" id="2">Task Details</button>
+    <form action="/download">
+        <button class="btn btn-success" id="mydownload"> Download </a>
     </form>
-        <form>
-    <button class="btn btn-success" onclick="http://localhost:5555/api/task/result/{{session['task_id']}}" id="3">Task Result</button>
-      </form>
-    <form>
-        <button class="btn btn-success" onclick="http://localhost:5555/tasks" id="4">All Tasks Status</button>
-<form>
-</div>
+        </div>
 
 </body>
 </html>

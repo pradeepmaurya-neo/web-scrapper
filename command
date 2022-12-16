@@ -1,5 +1,5 @@
 #celery worker for Linux
-celery -A crawl.celery worker --loglevel=info
+celery -A app.celery worker --loglevel=info
 
 #celery worker for windows
 celery -A tasks.celery worker -l info --pool=solo

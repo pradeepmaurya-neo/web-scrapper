@@ -1,0 +1,30 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data</title>
+</head>
+<body>
+    <table id="">
+        <tr>
+          <th>Web</th>
+          <th>Keywords</th>
+          <th>created_date</th>
+          <th>Download</th>
+          <th>ShowData</th>
+        
+        </tr>
+         {% for result in results %}
+        <tr>
+          <td>{{result.web}}</td><br> 
+          <td>{{result.keywords}}</td><br> 
+          <td>{{result.created_date}}</td>
+          <td> <a href="{{ url_for('download_report', id=result.id)}}" > Download </a></td>
+          <td> <a href="{{ url_for('show_result', id=result.id)}}" > Download </a></td>
+        </tr>
+         {% endfor %}
+      </table>
+   
+</body>
+</html>
